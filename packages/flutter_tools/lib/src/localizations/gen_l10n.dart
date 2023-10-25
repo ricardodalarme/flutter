@@ -57,7 +57,7 @@ Future<LocalizationsGenerator> generateLocalizations({
       inputsAndOutputsListPath: dependenciesDir?.path,
       projectPathString: projectDir.path,
       inputPathString: options.arbDir,
-      templateArbFileName: options.templateArbFile,
+      templateLocale: options.templateLocale,
       outputFileString: options.outputLocalizationFile,
       outputPathString: options.outputDir,
       classNameString: options.outputClass,
@@ -464,7 +464,7 @@ String _generateDelegateClass({
 }
 
 class LocalizationsGenerator {
-  /// Initializes [inputDirectory], [outputDirectory], [templateArbFile],
+  /// Initializes [inputDirectory], [outputDirectory], [templateLocale],
   /// [outputFile] and [className].
   ///
   /// Throws an [L10nException] when a provided configuration is not allowed
@@ -476,7 +476,7 @@ class LocalizationsGenerator {
     required FileSystem fileSystem,
     required String inputPathString,
     String? outputPathString,
-    required String templateArbFileName,
+    required String templateLocale,
     required String outputFileString,
     required String classNameString,
     List<String>? preferredSupportedLocales,
@@ -506,7 +506,7 @@ class LocalizationsGenerator {
       projectDirectory: projectDirectory,
       inputDirectory: inputDirectory,
       outputDirectory: outputDirectory,
-      templateArbFile: templateArbFileFromFileName(templateArbFileName, inputDirectory),
+      templateLocale: LocaleInfo.fromString(templateLocale),
       baseOutputFile: outputDirectory.childFile(outputFileString),
       preferredSupportedLocales: preferredSupportedLocalesFromLocales(preferredSupportedLocales),
       header: headerFromFile(headerString, headerFile, inputDirectory),
@@ -528,7 +528,7 @@ class LocalizationsGenerator {
   LocalizationsGenerator._(this._fs, {
     required this.inputDirectory,
     required this.outputDirectory,
-    required this.templateArbFile,
+    required this.templateLocale,
     required this.baseOutputFile,
     required this.className,
     this.preferredSupportedLocales = const <LocaleInfo>[],
@@ -550,11 +550,10 @@ class LocalizationsGenerator {
   final FileSystem _fs;
   List<Message> _allMessages = <Message>[];
   late final AppResourceBundleCollection _allBundles = AppResourceBundleCollection(inputDirectory);
-  late final AppResourceBundle _templateBundle = AppResourceBundle(templateArbFile);
+  late final AppResourceBundle _templateBundle = AppResourceBundle(_allBundles.bundleFor(templateLocale)!.file);
   late final Map<LocaleInfo, String> _inputFileNames = Map<LocaleInfo, String>.fromEntries(
     _allBundles.bundles.map((AppResourceBundle bundle) => MapEntry<LocaleInfo, String>(bundle.locale, bundle.file.basename))
   );
-  late final LocaleInfo _templateArbLocale = _templateBundle.locale;
 
   @visibleForTesting
   final bool useSyntheticPackage;
@@ -568,8 +567,8 @@ class LocalizationsGenerator {
   /// The directory that contains the project's arb files, as well as the
   /// header file, if specified.
   ///
-  /// It is assumed that all input files (e.g. [templateArbFile], arb files
-  /// for translated messages, header file templates) will reside here.
+  /// It is assumed that all input files, arb files for translated messages,
+  /// header file templates) will reside here.
   final Directory inputDirectory;
 
   /// The Flutter project's root directory.
@@ -582,9 +581,9 @@ class LocalizationsGenerator {
   /// will reside here.
   final Directory outputDirectory;
 
-  /// The input arb file which defines all of the messages that will be
-  /// exported by the generated class that's written to [outputFile].
-  final File templateArbFile;
+  /// The locale which defines all of the messages that will be exported by the
+  /// generated class that's written to [outputFile].
+  final LocaleInfo templateLocale;
 
   /// The file to write the generated abstract localizations and
   /// localizations delegate classes to. Separate localizations
@@ -774,26 +773,6 @@ class LocalizationsGenerator {
     return outputDirectory;
   }
 
-  /// Sets the reference [File] for [templateArbFile].
-  @visibleForTesting
-  static File templateArbFileFromFileName(String templateArbFileName, Directory inputDirectory) {
-    final File templateArbFile = inputDirectory.childFile(templateArbFileName);
-    final FileStat templateArbFileStat = templateArbFile.statSync();
-    if (templateArbFileStat.type == FileSystemEntityType.notFound) {
-      throw L10nException(
-        "The 'template-arb-file', $templateArbFile, does not exist."
-      );
-    }
-    final String templateArbFileStatModeString = templateArbFileStat.modeString();
-    if (templateArbFileStatModeString[0] == '-' && templateArbFileStatModeString[3] == '-') {
-      throw L10nException(
-        "The 'template-arb-file', $templateArbFile, is not readable.\n"
-        'Please ensure that the user has read permissions.'
-      );
-    }
-    return templateArbFile;
-  }
-
   static bool _isValidClassName(String className) {
     // Public Dart class name cannot begin with an underscore
     if (className[0] == '_') {
@@ -908,13 +887,13 @@ class LocalizationsGenerator {
     return true;
   }
 
-  // Load _allMessages from templateArbFile and _allBundles from all of the ARB
+  // Load _allMessages from the template file and _allBundles from all of the ARB
   // files in inputDirectory. Also initialized: supportedLocales.
   void loadResources() {
     for (final String resourceId in _templateBundle.resourceIds) {
       if (!_isValidGetterAndMethodName(resourceId)) {
         throw L10nException(
-          'Invalid ARB resource name "$resourceId" in $templateArbFile.\n'
+          'Invalid ARB resource name "$resourceId" in ${_templateBundle.file}.\n'
           'Resources names must be valid Dart method names: they have to be '
           'camel case, cannot start with a number or underscore, and cannot '
           'contain non-alphanumeric characters.'
@@ -973,7 +952,7 @@ class LocalizationsGenerator {
       LocaleInfo localeWithFallback = locale;
       if (message.messages[locale] == null) {
         _addUnimplementedMessage(locale, message.resourceId);
-        localeWithFallback = _templateArbLocale;
+        localeWithFallback = templateLocale;
       }
       if (message.parsedMessages[localeWithFallback] == null) {
         // The message exists, but parsedMessages[locale] is null due to a syntax error.
@@ -1136,7 +1115,7 @@ class LocalizationsGenerator {
     return fileTemplate
       .replaceAll('@(header)', header.isEmpty ? '' : '$header\n')
       .replaceAll('@(class)', className)
-      .replaceAll('@(methods)', _allMessages.map((Message message) => generateBaseClassMethod(message, _templateArbLocale, useNamedParameters)).join('\n'))
+      .replaceAll('@(methods)', _allMessages.map((Message message) => generateBaseClassMethod(message, templateLocale, useNamedParameters)).join('\n'))
       .replaceAll('@(importFile)', '$directory/$outputFileName')
       .replaceAll('@(supportedLocales)', supportedLocalesCode.join(',\n    '))
       .replaceAll('@(supportedLanguageCodes)', supportedLanguageCodes.join(', '))
