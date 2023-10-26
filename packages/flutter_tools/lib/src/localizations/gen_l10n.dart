@@ -978,9 +978,8 @@ class LocalizationsGenerator {
 
   String _generateSubclass(
     String className,
-    AppResourceBundle bundle,
+    LocaleInfo locale,
   ) {
-    final LocaleInfo locale = bundle.locale;
     final String baseClassName = '$className${LocaleInfo.fromString(locale.languageCode).camelCase()}';
 
     _allMessages
@@ -1081,7 +1080,7 @@ class LocalizationsGenerator {
         final Iterable<String> subclasses = localesForLanguage.map<String>((LocaleInfo locale) {
           return _generateSubclass(
             className,
-            _allBundles.bundleFor(locale)!,
+            locale,
           );
         });
 
