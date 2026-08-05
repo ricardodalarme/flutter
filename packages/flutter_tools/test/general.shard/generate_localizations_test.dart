@@ -832,7 +832,7 @@ flutter:
 
       expect(generator.inputDirectory.path, '/lib/l10n/');
       expect(generator.outputDirectory.path, '/lib/l10n/');
-      expect(generator.templateArbFile.path, '/lib/l10n/app_en.arb');
+      expect(generator.templateLocale, LocaleInfo.fromString('en'));
       expect(generator.baseOutputFile.path, '/lib/l10n/bar.dart');
       expect(generator.className, 'Foo');
       expect(generator.preferredSupportedLocales.single, LocaleInfo.fromString('es'));
@@ -3491,5 +3491,65 @@ String helloNameAndAge({required String name, required int age}) {
       localizationsFile,
       containsIgnoringWhitespace(r'''String get test => 'No placeholder in here'''),
     );
+  });
+
+  group('namespaced localizations', () {
+    testWithoutContext('generates namespaced methods for ARB files in subdirectories', () {
+      final Directory l10nDirectory = fs.directory(defaultL10nPath)..createSync(recursive: true);
+      final Directory homeDirectory = l10nDirectory.childDirectory('home')..createSync();
+      final Directory settingsDirectory = l10nDirectory.childDirectory('settings')..createSync();
+
+      homeDirectory.childFile('app_en.arb').writeAsStringSync('''
+{
+  "title": "Home Title"
+}
+''');
+      homeDirectory.childFile('app_es.arb').writeAsStringSync('''
+{
+  "title": "Título Principal"
+}
+''');
+      settingsDirectory.childFile('app_en.arb').writeAsStringSync('''
+{
+  "title": "Settings Title"
+}
+''');
+      settingsDirectory.childFile('app_es.arb').writeAsStringSync('''
+{
+  "title": "Título de Configuración"
+}
+''');
+
+      LocalizationsGenerator(
+          fileSystem: fs,
+          inputPathString: l10nDirectory.path,
+          outputPathString: l10nDirectory.path,
+          templateLocale: 'en',
+          outputFileString: defaultOutputFileString,
+          classNameString: defaultClassNameString,
+          logger: logger,
+          projectPathString: fs.currentDirectory.path,
+        )
+        ..loadResources()
+        ..writeOutputFiles();
+
+      final String baseClassFile = fs
+          .file(fs.path.join(defaultL10nPath, 'output-localization-file.dart'))
+          .readAsStringSync();
+      expect(baseClassFile, contains('String get home_title;'));
+      expect(baseClassFile, contains('String get settings_title;'));
+
+      final String enFile = fs
+          .file(fs.path.join(defaultL10nPath, 'output-localization-file_en.dart'))
+          .readAsStringSync();
+      expect(enFile, contains("String get home_title => 'Home Title';"));
+      expect(enFile, contains("String get settings_title => 'Settings Title';"));
+
+      final String esFile = fs
+          .file(fs.path.join(defaultL10nPath, 'output-localization-file_es.dart'))
+          .readAsStringSync();
+      expect(esFile, contains("String get home_title => 'Título Principal';"));
+      expect(esFile, contains("String get settings_title => 'Título de Configuración';"));
+    });
   });
 }
