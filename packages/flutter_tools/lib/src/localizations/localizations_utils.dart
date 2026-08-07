@@ -331,6 +331,7 @@ class LocalizationOptions {
     required this.arbDir,
     this.outputDir,
     String? templateArbFile,
+    this.templateLocale,
     String? outputLocalizationFile,
     this.untranslatedMessagesFile,
     String? outputClass,
@@ -347,7 +348,8 @@ class LocalizationOptions {
     bool? suppressWarnings,
     bool? relaxSyntax,
     bool? useNamedParameters,
-  }) : templateArbFile = templateArbFile ?? 'app_en.arb',
+    bool? useNamespaces,
+  }) : templateArbFile = templateArbFile ?? (templateLocale == null ? 'app_en.arb' : null),
        outputLocalizationFile = outputLocalizationFile ?? 'app_localizations.dart',
        outputClass = outputClass ?? 'AppLocalizations',
        useDeferredLoading = useDeferredLoading ?? false,
@@ -357,7 +359,8 @@ class LocalizationOptions {
        useEscaping = useEscaping ?? false,
        suppressWarnings = suppressWarnings ?? false,
        relaxSyntax = relaxSyntax ?? false,
-       useNamedParameters = useNamedParameters ?? false;
+       useNamedParameters = useNamedParameters ?? false,
+       useNamespaces = useNamespaces ?? false;
 
   /// The `--arb-dir` argument.
   ///
@@ -372,7 +375,36 @@ class LocalizationOptions {
   /// The `--template-arb-file` argument.
   ///
   /// This path is relative to [arbDir].
-  final String templateArbFile;
+  @Deprecated(
+    'Use `templateLocale` instead. '
+    'Deprecated in favor of `templateLocale` since namespaces allow multiple localization files for the same locale.',
+  )
+  final String? templateArbFile;
+
+  /// The `--template-locale` argument.
+  ///
+  /// The locale that should be used as the basis for generating the
+  /// localization files. Each namespace's ARB file that matches this locale is
+  /// that namespace's template (the source of truth for message keys,
+  /// placeholders, and descriptions).
+  ///
+  /// If not provided, the locale is derived from [templateArbFile].
+  ///
+  /// This path is relative to [arbDir].
+  final String? templateLocale;
+
+  /// The `--use-namespaces` argument.
+  ///
+  /// Whether to allow multiple ARB files to describe the same locale by
+  /// grouping them into namespaces. When `false` (the default), the historical
+  /// behavior is preserved: only the ARB files directly inside [arbDir] are
+  /// used, and there may be at most one ARB file per locale.
+  ///
+  /// When `true`, each immediate subdirectory of [arbDir] that contains ARB
+  /// files becomes a namespace, and messages from different namespaces are
+  /// named with the namespace as a prefix (e.g. `home_title`). Root-level files
+  /// remain in the empty namespace.
+  final bool useNamespaces;
 
   /// The `--output-localization-file` argument.
   ///
@@ -503,10 +535,21 @@ LocalizationOptions parseLocalizationsOptionsFromYAML({
       );
     }
   }
+
+  const kTemplateArbFile = 'template-arb-file';
+  if (yamlNode.containsKey(kTemplateArbFile)) {
+    logger.printWarning(
+      '${file.path}: The "$kTemplateArbFile" option is deprecated. '
+      'Prefer "template-locale" instead. When "template-locale" is not '
+      'specified, the locale of the template ARB file is used.',
+    );
+  }
+
   return LocalizationOptions(
     arbDir: _tryReadFilePath(yamlNode, 'arb-dir', logger, fileSystem) ?? defaultArbDir,
     outputDir: _tryReadFilePath(yamlNode, 'output-dir', logger, fileSystem),
-    templateArbFile: _tryReadFilePath(yamlNode, 'template-arb-file', logger, fileSystem),
+    templateArbFile: _tryReadFilePath(yamlNode, kTemplateArbFile, logger, fileSystem),
+    templateLocale: _tryReadString(yamlNode, 'template-locale', logger),
     outputLocalizationFile: _tryReadFilePath(
       yamlNode,
       'output-localization-file',
@@ -531,6 +574,7 @@ LocalizationOptions parseLocalizationsOptionsFromYAML({
     suppressWarnings: _tryReadBool(yamlNode, 'suppress-warnings', logger),
     relaxSyntax: _tryReadBool(yamlNode, 'relax-syntax', logger),
     useNamedParameters: _tryReadBool(yamlNode, 'use-named-parameters', logger),
+    useNamespaces: _tryReadBool(yamlNode, 'use-namespaces', logger),
   );
 }
 
@@ -554,11 +598,22 @@ LocalizationOptions parseLocalizationsOptionsFromCommand({
       );
     }
   }
+
+  const kTemplateArbFile = 'template-arb-file';
+  if (command.argResults!.wasParsed(kTemplateArbFile)) {
+    globals.logger.printWarning(
+      'The argument "$kTemplateArbFile" is deprecated. Prefer "template-locale" '
+      'instead. When "template-locale" is not specified, the locale of the '
+      'template ARB file is used.',
+    );
+  }
+
   return LocalizationOptions(
     arbDir: command.stringArg('arb-dir') ?? defaultArbDir,
     outputDir: command.stringArg('output-dir'),
     outputLocalizationFile: command.stringArg('output-localization-file'),
-    templateArbFile: command.stringArg('template-arb-file'),
+    templateArbFile: command.stringArg(kTemplateArbFile),
+    templateLocale: command.stringArg('template-locale'),
     untranslatedMessagesFile: command.stringArg('untranslated-messages-file'),
     outputClass: command.stringArg('output-class'),
     header: command.stringArg('header'),
@@ -572,6 +627,7 @@ LocalizationOptions parseLocalizationsOptionsFromCommand({
     useEscaping: command.boolArg('use-escaping'),
     suppressWarnings: command.boolArg('suppress-warnings'),
     useNamedParameters: command.boolArg('use-named-parameters'),
+    useNamespaces: command.boolArg('use-namespaces'),
   );
 }
 

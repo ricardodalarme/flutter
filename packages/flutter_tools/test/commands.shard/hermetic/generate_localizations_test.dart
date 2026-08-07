@@ -636,24 +636,119 @@ format: false
     );
   });
 
+  testUsingContext('prints warning when --no-synthetic-package is provided', () async {
+    final command = GenerateLocalizationsCommand(
+      fileSystem: fileSystem,
+      logger: logger,
+      artifacts: artifacts,
+      processManager: processManager,
+    );
+    fileSystem.file(fileSystem.path.join('lib', 'l10n', 'app_en.arb')).createSync(recursive: true);
+    final File pubspecFile = fileSystem.file('pubspec.yaml')..createSync();
+    pubspecFile.writeAsStringSync(BasicProjectWithFlutterGen().pubspec);
+    await createTestCommandRunner(command).run(<String>['gen-l10n', '--no-synthetic-package']);
+    expect(logger.warningText, contains('synthetic-package'));
+  }, overrides: <Type, Generator>{Logger: () => logger});
+
   testUsingContext(
-    'prints warning when --no-synthetic-package is provided',
+    '--use-namespaces generates namespaced messages',
     () async {
+      final File rootArbFile = fileSystem.file(fileSystem.path.join('lib', 'l10n', 'app_en.arb'))
+        ..createSync(recursive: true);
+      rootArbFile.writeAsStringSync('''
+{
+  "title": "Title"
+}''');
+      final File namespaceArbFile = fileSystem.file(
+        fileSystem.path.join('lib', 'l10n', 'home', 'home_en.arb'),
+      )..createSync(recursive: true);
+      namespaceArbFile.writeAsStringSync('''
+{
+  "title": "Home title"
+}''');
+      final File pubspecFile = fileSystem.file('pubspec.yaml')..createSync();
+      pubspecFile.writeAsStringSync(BasicProjectWithFlutterGen().pubspec);
       final command = GenerateLocalizationsCommand(
         fileSystem: fileSystem,
         logger: logger,
         artifacts: artifacts,
         processManager: processManager,
       );
-      fileSystem
-          .file(fileSystem.path.join('lib', 'l10n', 'app_en.arb'))
-          .createSync(recursive: true);
+
+      await createTestCommandRunner(command).run(<String>['gen-l10n', '--use-namespaces']);
+
+      final Directory outputDirectory = fileSystem.directory(fileSystem.path.join('lib', 'l10n'));
+      final String generated = outputDirectory
+          .childFile('app_localizations_en.dart')
+          .readAsStringSync();
+      expect(generated, contains('String get title'));
+      expect(generated, contains('String get home_title'));
+    },
+    overrides: <Type, Generator>{
+      FileSystem: () => fileSystem,
+      ProcessManager: () => FakeProcessManager.any(),
+    },
+  );
+
+  testUsingContext(
+    '--template-locale conflicting with --template-arb-file throws',
+    () async {
+      final File arbFile = fileSystem.file(fileSystem.path.join('lib', 'l10n', 'app_en.arb'))
+        ..createSync(recursive: true);
+      arbFile.writeAsStringSync('''
+{
+  "helloWorld": "Hello, World!"
+}''');
       final File pubspecFile = fileSystem.file('pubspec.yaml')..createSync();
       pubspecFile.writeAsStringSync(BasicProjectWithFlutterGen().pubspec);
-      await createTestCommandRunner(command).run(<String>['gen-l10n', '--no-synthetic-package']);
-      expect(logger.warningText, contains('synthetic-package'));
+      final command = GenerateLocalizationsCommand(
+        fileSystem: fileSystem,
+        logger: logger,
+        artifacts: artifacts,
+        processManager: processManager,
+      );
+
+      await expectLater(
+        () async => createTestCommandRunner(
+          command,
+        ).run(<String>['gen-l10n', '--template-locale=es', '--template-arb-file=app_en.arb']),
+        throwsToolExit(message: 'does not match'),
+      );
     },
-    overrides: <Type, Generator>{Logger: () => logger},
+    overrides: <Type, Generator>{
+      FileSystem: () => fileSystem,
+      ProcessManager: () => FakeProcessManager.any(),
+    },
+  );
+
+  testUsingContext(
+    '--template-locale works as an alternative to --template-arb-file',
+    () async {
+      final File arbFile = fileSystem.file(fileSystem.path.join('lib', 'l10n', 'main_en.arb'))
+        ..createSync(recursive: true);
+      arbFile.writeAsStringSync('''
+{
+  "helloWorld": "Hello, World!"
+}''');
+      final File pubspecFile = fileSystem.file('pubspec.yaml')..createSync();
+      pubspecFile.writeAsStringSync(BasicProjectWithFlutterGen().pubspec);
+      final command = GenerateLocalizationsCommand(
+        fileSystem: fileSystem,
+        logger: logger,
+        artifacts: artifacts,
+        processManager: processManager,
+      );
+
+      await createTestCommandRunner(command).run(<String>['gen-l10n', '--template-locale=en']);
+
+      final Directory outputDirectory = fileSystem.directory(fileSystem.path.join('lib', 'l10n'));
+      expect(outputDirectory.childFile('app_localizations_en.dart').existsSync(), true);
+      expect(outputDirectory.childFile('app_localizations.dart').existsSync(), true);
+    },
+    overrides: <Type, Generator>{
+      FileSystem: () => fileSystem,
+      ProcessManager: () => FakeProcessManager.any(),
+    },
   );
 
   group(AppResourceBundle, () {

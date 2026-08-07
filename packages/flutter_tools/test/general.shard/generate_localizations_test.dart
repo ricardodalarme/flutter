@@ -832,7 +832,7 @@ flutter:
 
       expect(generator.inputDirectory.path, '/lib/l10n/');
       expect(generator.outputDirectory.path, '/lib/l10n/');
-      expect(generator.templateArbFile.path, '/lib/l10n/app_en.arb');
+      expect(generator.templateLocale, LocaleInfo.fromString('en'));
       expect(generator.baseOutputFile.path, '/lib/l10n/bar.dart');
       expect(generator.className, 'Foo');
       expect(generator.preferredSupportedLocales.single, LocaleInfo.fromString('es'));
@@ -3490,6 +3490,60 @@ String helloNameAndAge({required String name, required int age}) {
     expect(
       localizationsFile,
       containsIgnoringWhitespace(r'''String get test => 'No placeholder in here'''),
+    );
+  });
+
+  testWithoutContext('generates output using templateLocale without a template arb file', () {
+    final Directory l10nDirectory = fs.currentDirectory.childDirectory('lib').childDirectory('l10n')
+      ..createSync(recursive: true);
+    l10nDirectory.childFile('main_en.arb').writeAsStringSync(singleMessageArbFileString);
+    l10nDirectory.childFile('main_es.arb').writeAsStringSync(singleEsMessageArbFileString);
+
+    LocalizationsGenerator(
+        fileSystem: fs,
+        inputPathString: defaultL10nPath,
+        outputPathString: defaultL10nPath,
+        templateLocale: 'en',
+        outputFileString: defaultOutputFileString,
+        classNameString: defaultClassNameString,
+        logger: logger,
+        projectPathString: fs.currentDirectory.path,
+      )
+      ..loadResources()
+      ..writeOutputFiles();
+
+    expect(getGeneratedFileContent(locale: 'en'), contains('String get title'));
+    expect(getGeneratedFileContent(locale: 'es'), contains('String get title'));
+  });
+
+  testWithoutContext('throws when templateLocale and templateArbFileName are both null', () {
+    fs.currentDirectory.childDirectory('lib').childDirectory('l10n')
+      ..createSync(recursive: true)
+      ..childFile('app.arb').writeAsStringSync(singleMessageArbFileString);
+
+    expect(
+      () {
+        LocalizationsGenerator(
+          fileSystem: fs,
+          inputPathString: defaultL10nPath,
+          outputPathString: defaultL10nPath,
+          outputFileString: defaultOutputFileString,
+          classNameString: defaultClassNameString,
+          logger: logger,
+          projectPathString: fs.currentDirectory.path,
+          // ignore: avoid_redundant_argument_values
+          templateArbFileName: null,
+          // ignore: avoid_redundant_argument_values
+          templateLocale: null,
+        );
+      },
+      throwsA(
+        isA<AssertionError>().having(
+          (AssertionError e) => e.message,
+          'message',
+          contains('templateArbFileName or templateLocale must be provided.'),
+        ),
+      ),
     );
   });
 }

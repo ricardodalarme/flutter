@@ -48,8 +48,19 @@ class GenerateLocalizationsCommand extends FlutterCommand {
     argParser.addOption(
       'template-arb-file',
       help:
-          'The template arb file that will be used as the basis for '
-          'generating the Dart localization and messages files.',
+          'DEPRECATED. The template arb file that will be used as the basis for '
+          'generating the Dart localization and messages files. '
+          'Prefer `--template-locale` instead, which is the locale used as the '
+          'basis for generating the localization and messages files. When '
+          "`--template-locale` is not specified, this file's locale is used.",
+    );
+    argParser.addOption(
+      'template-locale',
+      help:
+          'The locale that will be used as the basis for generating the Dart '
+          "localization and messages files. Each namespace's ARB file that "
+          "matches this locale is that namespace's template. If not specified, "
+          'the locale is derived from `--template-arb-file`.',
     );
     argParser.addOption(
       'output-localization-file',
@@ -211,6 +222,21 @@ class GenerateLocalizationsCommand extends FlutterCommand {
     argParser.addFlag(
       'use-named-parameters',
       help: 'Whether or not to use named parameters for the generated localization methods.',
+    );
+    argParser.addFlag(
+      'use-namespaces',
+      help:
+          'Whether or not to allow multiple ARB files to describe the same '
+          'locale by grouping them into namespaces.\n'
+          '\n'
+          'When this flag is set, each immediate subdirectory of the arb '
+          'directory becomes a namespace, and the messages in it are generated '
+          'with the namespace as a prefix (e.g. home_title). Root-level ARB '
+          'files remain in the empty namespace.\n'
+          '\n'
+          'When this flag is not set (the default), the historical behavior is '
+          'preserved: only the ARB files directly in the arb directory are '
+          'used, with at most one ARB file per locale.',
     );
   }
 

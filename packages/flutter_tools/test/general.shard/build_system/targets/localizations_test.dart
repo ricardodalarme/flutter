@@ -68,6 +68,88 @@ nullable-getter: false
     expect(options.nullableGetter, false);
   });
 
+  testWithoutContext(
+    'parseLocalizationsOptions handles template-locale and use-namespaces',
+    () async {
+      final FileSystem fileSystem = MemoryFileSystem.test();
+      final File configFile = fileSystem.file('l10n.yaml')
+        ..writeAsStringSync('''
+arb-dir: arb
+template-locale: en
+use-namespaces: true
+''');
+
+      final LocalizationOptions options = parseLocalizationsOptionsFromYAML(
+        file: configFile,
+        logger: BufferLogger.test(),
+        fileSystem: fileSystem,
+        defaultArbDir: fileSystem.path.join('lib', 'l10n'),
+      );
+
+      expect(options.templateLocale, 'en');
+      expect(options.useNamespaces, true);
+    },
+  );
+
+  testWithoutContext(
+    'parseLocalizationsOptions defaults use-namespaces to false when not specified',
+    () async {
+      final FileSystem fileSystem = MemoryFileSystem.test();
+      final File configFile = fileSystem.file('l10n.yaml')
+        ..writeAsStringSync('''
+arb-dir: arb
+''');
+
+      final LocalizationOptions options = parseLocalizationsOptionsFromYAML(
+        file: configFile,
+        logger: BufferLogger.test(),
+        fileSystem: fileSystem,
+        defaultArbDir: fileSystem.path.join('lib', 'l10n'),
+      );
+
+      expect(options.useNamespaces, false);
+    },
+  );
+
+  testWithoutContext('parseLocalizationsOptions warns when template-arb-file is set', () async {
+    final FileSystem fileSystem = MemoryFileSystem.test();
+    final File configFile = fileSystem.file('l10n.yaml')
+      ..writeAsStringSync('''
+template-arb-file: example.arb
+''');
+
+    final logger = BufferLogger.test();
+    parseLocalizationsOptionsFromYAML(
+      file: configFile,
+      logger: logger,
+      fileSystem: fileSystem,
+      defaultArbDir: fileSystem.path.join('lib', 'l10n'),
+    );
+
+    expect(logger.warningText, contains('template-arb-file'));
+  });
+
+  testWithoutContext(
+    'parseLocalizationsOptions does not warn about template-arb-file when it is not set',
+    () async {
+      final FileSystem fileSystem = MemoryFileSystem.test();
+      final File configFile = fileSystem.file('l10n.yaml')
+        ..writeAsStringSync('''
+template-locale: en
+''');
+
+      final logger = BufferLogger.test();
+      parseLocalizationsOptionsFromYAML(
+        file: configFile,
+        logger: logger,
+        fileSystem: fileSystem,
+        defaultArbDir: fileSystem.path.join('lib', 'l10n'),
+      );
+
+      expect(logger.warningText, isNot(contains('template-arb-file')));
+    },
+  );
+
   testWithoutContext('parseLocalizationsOptions refuses synthetic-package: true', () async {
     final FileSystem fileSystem = MemoryFileSystem.test();
     final File configFile = fileSystem.file('l10n.yaml')
